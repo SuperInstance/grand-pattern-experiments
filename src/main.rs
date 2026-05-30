@@ -32,16 +32,16 @@ impl Vibe {
 
     fn add(&self, other: &Vibe) -> Vibe {
         let mut d = self.dims;
-        for i in 0..6 {
-            d[i] += other.dims[i];
+        for (i, &val) in other.dims.iter().enumerate() {
+            d[i] += val;
         }
         Vibe { dims: d }
     }
 
     fn scale(&self, s: f64) -> Vibe {
         let mut d = self.dims;
-        for i in 0..6 {
-            d[i] *= s;
+        for val in d.iter_mut() {
+            *val *= s;
         }
         Vibe { dims: d }
     }
@@ -157,7 +157,7 @@ impl VibeGraph {
         // Compute new vibes via diffusion
         let mut new_vibes: Vec<Vibe> = self.rooms.iter().map(|r| r.vibe).collect();
 
-        for i in 0..n {
+        for (i, new_vibe) in new_vibes.iter_mut().enumerate().take(n) {
             let neighbors = &self.edges[i];
             if neighbors.is_empty() {
                 continue;
@@ -166,7 +166,7 @@ impl VibeGraph {
             for &j in neighbors {
                 // pull from neighbor
                 let pull = self.rooms[j].vibe.lerp(&self.rooms[i].vibe, 1.0 - diffusion_coeff / neighbor_count);
-                new_vibes[i] = new_vibes[i].lerp(&pull, 1.0 / neighbor_count.max(1.0));
+                *new_vibe = new_vibe.lerp(&pull, 1.0 / neighbor_count.max(1.0));
             }
 
             // surprise propagation: a fraction of neighbor surprise leaks
@@ -175,14 +175,13 @@ impl VibeGraph {
                 surprise_leak += self.rooms[j].surprise_accumulator;
             }
             surprise_leak *= diffusion_coeff / neighbor_count.max(1.0);
-            { let s = new_vibes[i].surprise(); new_vibes[i].set_surprise(s + surprise_leak * 0.1); }
+            { let s = new_vibe.surprise(); new_vibe.set_surprise(s + surprise_leak * 0.1); }
         }
 
         // GC: decay surprise and compress vibes toward neutral
-        for i in 0..n {
+        for (i, new_vibe) in new_vibes.iter().enumerate().take(n) {
             self.rooms[i].surprise_accumulator *= 1.0 - self.gc_aggressiveness;
-            new_vibes[i] = new_vibes[i].lerp(&Vibe::constant(0.5), self.gc_aggressiveness * 0.1);
-            self.rooms[i].vibe = new_vibes[i];
+            self.rooms[i].vibe = new_vibe.lerp(&Vibe::constant(0.5), self.gc_aggressiveness * 0.1);
         }
     }
 
@@ -273,20 +272,17 @@ fn ascii_sparkline(data: &[f64], width: usize, height: usize) -> String {
         })
         .collect();
 
-    let blocks = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
     let mut lines = vec![String::new(); height];
 
-    for row in 0..height {
+    for (row, line) in lines.iter_mut().enumerate() {
         let row_low = (height - 1 - row) as f64 / height as f64;
-        let row_high = (height - row) as f64 / height as f64;
+        let _row_high = (height - row) as f64 / height as f64;
         for val in &sampled {
             let norm = (val - min) / range;
-            if norm >= row_low && norm < row_high {
-                lines[row].push('█');
-            } else if norm >= row_high {
-                lines[row].push('█');
+            if norm >= row_low {
+                line.push('█');
             } else {
-                lines[row].push(' ');
+                line.push(' ');
             }
         }
     }
@@ -370,8 +366,8 @@ fn run_experiment2() -> Experiment2Result {
     let mut surprise_at_room: [Vec<f64>; 5] = [vec![], vec![], vec![], vec![], vec![]];
 
     for _ in 0..100 {
-        for i in 0..5 {
-            surprise_at_room[i].push(g.rooms[i].vibe.surprise());
+        for (i, room_data) in surprise_at_room.iter_mut().enumerate() {
+            room_data.push(g.rooms[i].vibe.surprise());
         }
         g.tick(0.1);
     }
@@ -445,7 +441,8 @@ struct TopologyResult {
 }
 
 fn run_experiment4() -> Vec<TopologyResult> {
-    let topologies: Vec<(&str, fn(usize) -> VibeGraph)> = vec![
+    type GraphBuilder = fn(usize) -> VibeGraph;
+    let topologies: Vec<(&str, GraphBuilder)> = vec![
         ("chain", make_chain as fn(usize) -> VibeGraph),
         ("star", make_star as fn(usize) -> VibeGraph),
         ("mesh", make_mesh as fn(usize) -> VibeGraph),
@@ -522,7 +519,7 @@ fn run_experiment5() -> Vec<DissolutionResult> {
             g.set_vibe(i, Vibe::constant(0.5 + 0.1 * (i as f64)));
         }
 
-        let mut dissolved = vec![false; 5];
+        let mut dissolved = [false; 5];
         let mut dissolved_count = 0;
         let mut dissolve_tick: Option<usize> = None;
         let diffusion = 0.1;
@@ -533,9 +530,9 @@ fn run_experiment5() -> Vec<DissolutionResult> {
             g.tick(diffusion);
 
             // Check dissolution
-            for i in 0..5 {
-                if !dissolved[i] && g.rooms[i].vibe.surprise() < threshold && g.rooms[i].vibe.magnitude() < 0.6 {
-                    dissolved[i] = true;
+            for (i, diss) in dissolved.iter_mut().enumerate() {
+                if !*diss && g.rooms[i].vibe.surprise() < threshold && g.rooms[i].vibe.magnitude() < 0.6 {
+                    *diss = true;
                     dissolved_count += 1;
                     if dissolve_tick.is_none() {
                         dissolve_tick = Some(tick);

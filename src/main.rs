@@ -12,6 +12,7 @@ struct Vibe {
 }
 
 impl Vibe {
+    #[allow(dead_code)]
     const LABELS: [&'static str; 6] = [
         "curiosity",
         "urgency",
@@ -65,6 +66,7 @@ impl Vibe {
             .fold(0.0f64, f64::max)
     }
 
+    #[allow(dead_code)]
     fn mean(&self) -> f64 {
         self.dims.iter().sum::<f64>() / 6.0
     }
@@ -90,7 +92,7 @@ impl fmt::Display for Vibe {
 /// A room in the vibe graph
 #[derive(Clone)]
 struct Room {
-    id: usize,
+    #[allow(dead_code)] id: usize,
     vibe: Vibe,
     surprise_accumulator: f64,
 }
@@ -132,6 +134,7 @@ impl VibeGraph {
         self.rooms[idx].vibe = vibe;
     }
 
+    #[allow(dead_code)]
     fn inject_surprise(&mut self, idx: usize, amount: f64) {
         self.rooms[idx].surprise_accumulator += amount;
     }
@@ -177,7 +180,7 @@ impl VibeGraph {
 
         // GC: decay surprise and compress vibes toward neutral
         for i in 0..n {
-            self.rooms[i].surprise_accumulator *= (1.0 - self.gc_aggressiveness);
+            self.rooms[i].surprise_accumulator *= 1.0 - self.gc_aggressiveness;
             new_vibes[i] = new_vibes[i].lerp(&Vibe::constant(0.5), self.gc_aggressiveness * 0.1);
             self.rooms[i].vibe = new_vibes[i];
         }
@@ -208,6 +211,7 @@ impl VibeGraph {
         self.rooms.iter().map(|r| r.vibe.magnitude()).sum()
     }
 
+    #[allow(dead_code)]
     fn room_count(&self) -> usize {
         self.rooms.len()
     }
@@ -251,6 +255,7 @@ fn make_mesh(n: usize) -> VibeGraph {
 
 // ─── ASCII Plot Helper ────────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn ascii_sparkline(data: &[f64], width: usize, height: usize) -> String {
     if data.is_empty() {
         return "(no data)".to_string();
@@ -396,7 +401,7 @@ fn run_experiment3() -> Vec<GcResult> {
 
         let mut breaks = 0;
 
-        for tick in 0..ticks {
+        for _tick in 0..ticks {
             // pseudo-random input injection
             seed = seed ^ (seed << 13);
             seed = seed ^ (seed >> 7);
@@ -689,7 +694,7 @@ fn main() {
     println!("1. **Diffusion works:** Vibe converges to fleet uniformity through gossip alone.");
     println!("2. **Surprise cascades:** Surprise propagates through chains but decays with distance.");
     println!("3. **GC is the enemy of conservation:** Higher GC → more conservation breaks.");
-    println!("4. **Topology matters:** Mesh converges fastest, chain slowest, star is hub-dependent.");
+    println!("4. **Topology matters:** Star converges fastest (35 ticks), chain moderate (159 ticks), mesh slowest (504 ticks) despite more connections.");
     println!("5. **Dissolution is real:** Below a surprise threshold, rooms naturally dissolve.");
 }
 
@@ -748,8 +753,6 @@ mod tests {
         for _ in 0..10 {
             g.tick(0.1);
         }
-        let s4 = g.rooms[4].vibe.surprise();
-
         assert!(s0 > 0.5, "Room 0 should have high surprise, got {}", s0);
         // Surprise may or may not reach room 4 in 10 ticks, but room 1 should feel it
         let s1 = g.rooms[1].vibe.surprise();

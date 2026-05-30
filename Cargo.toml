@@ -1,0 +1,9 @@
+[package]
+name = "grand-pattern-experiments"
+version = "0.1.0"
+edition = "2021"
+description = "Low-level experiments testing Grand Pattern theory — diffusion, conservation, topology, dissolution"
+
+[[bin]]
+name = "grand-pattern-experiments"
+path = "src/main.rs"
